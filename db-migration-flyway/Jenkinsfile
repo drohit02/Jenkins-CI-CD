@@ -28,7 +28,7 @@ pipeline {
                     step([
                         $class: 'FlywayBuilder',
                         flywayCommand: 'migrate',
-                        locations: "filesystem:${env.WORKSPACE}/db-script",
+                        locations: "filesystem:${env.WORKSPACE}/db-migration-flyway/db-script",
                         url: env.DB_URL,
                         user: env.DB_USER,
                         password: env.DB_PASSWORD
@@ -85,9 +85,9 @@ def isDbScriptChanged() {
         
         if (previousCommit == null || previousCommit == currentCommit) {
             echo "No previous commit found or same as current, checking for db-script existence"
-            def dbScriptExists = fileExists('db-script')
+            def dbScriptExists = fileExists('db-migration-flyway/db-script')
             if (dbScriptExists) {
-                echo "db-script folder exists, running migration"
+                echo "db-migration-flyway/db-script folder exists, running migration"
                 return 'true'
             }
             return 'false'
@@ -95,10 +95,10 @@ def isDbScriptChanged() {
         
         echo "Previous commit: ${previousCommit}"
         
-        // Check for changes in db-script directory between commits
+        // Check for changes in db-migration-flyway/db-script directory between commits
         def changes = sh(
             script: """
-                git diff --name-only ${previousCommit} ${currentCommit} | grep '^db-script/' || true
+                git diff --name-only ${previousCommit} ${currentCommit} | grep '^db-migration-flyway/db-script/' || true
             """,
             returnStdout: true
         ).trim()
