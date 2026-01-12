@@ -23,32 +23,40 @@ pipeline {
                 expression { env.DB_CHANGED == 'true' }
             }
             steps {
-                flywayRunner(
-                    action: 'migrate',
-                    url: env.DB_URL,
-                    user: env.DB_USER,
-                    password: env.DB_PASSWORD,
-                    locations: 'filesystem:db-script'
-                )
+                echo "Flyway migrate --url=${env.DB_URL} --user=${env.DB_USER} --password=**** --locations=filesystem:${env.WORKSPACE}/db-script"
             }
         }
 
         stage('Build') {
             steps {
-                echo 'mvn clean package -DskipTests'
+                echo "mvn clean package -DskipTests"
             }
         }
 
         stage('Test') {
             steps {
-                echo 'mvn test'
+                echo "mvn test"
             }
         }
 
         stage('Deploy') {
             steps {
-                echo 'mvm deploy'
+                echo "mvn deploy"
             }
         }
     }
+}
+def isDbScriptChanged() {
+    echo "Checking if db-script folder has changed..."
+
+    // Simulate first build detection
+    def hasPreviousCommit = 'false' // For dry-run, we assume first build
+    if (hasPreviousCommit == 'false') {
+        echo "First build detected — assuming DB migration is required"
+        return 'true'
+    }
+
+    // Normally, you would check git diff here
+    def output = 'db-script/V1__init.sql' // Simulated changed file
+    return output ? 'true' : 'false'
 }
