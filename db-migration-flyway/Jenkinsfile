@@ -1,0 +1,54 @@
+pipeline {
+    agent any
+
+    environment {
+        DB_URL      = credentials('db-url')
+        DB_USER     = credentials('db-user')
+        DB_PASSWORD = credentials('db-password')
+    }
+
+    stages {
+
+        stage('Detect DB Script Changes') {
+            steps {
+                script {
+                    env.DB_CHANGED = isDbScriptChanged()
+                    echo "DB Script Changed: ${env.DB_CHANGED}"
+                }
+            }
+        }
+
+        stage('DB Migration') {
+            when {
+                expression { env.DB_CHANGED == 'true' }
+            }
+            steps {
+                flywayRunner(
+                    action: 'migrate',
+                    url: env.DB_URL,
+                    user: env.DB_USER,
+                    password: env.DB_PASSWORD,
+                    locations: 'filesystem:db-script'
+                )
+            }
+        }
+
+        stage('Build') {
+            steps {
+                echo 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo 'mvn test'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo 'mvm deploy'
+            }
+        }
+    }
+}
