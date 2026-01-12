@@ -23,14 +23,17 @@ pipeline {
                 expression { env.DB_CHANGED == 'true' }
             }
             steps {
-                // THIS WILL ACTUALLY APPLY MIGRATIONS
-                flywayRunner(
-                    action: 'migrate',
-                    url: env.DB_URL,
-                    user: env.DB_USER,
-                    password: env.DB_PASSWORD,
-                    locations: "filesystem:${env.WORKSPACE}/db-script"
-                )
+                script {
+                    // Using FlywayBuilder with credentials
+                    step([
+                        $class: 'FlywayBuilder',
+                        flywayCommand: 'migrate',
+                        locations: "filesystem:${env.WORKSPACE}/db-script",
+                        url: env.DB_URL,
+                        user: env.DB_USER,
+                        password: env.DB_PASSWORD
+                    ])
+                }
             }
         }
 
@@ -52,19 +55,46 @@ pipeline {
             }
         }
     }
+
+    post {
+        success {
+            echo "Pipeline completed successfully!"
+        }
+        failure {
+            echo "Pipeline failed. Check the logs for details."
+        }
+    }
 }
 
 def isDbScriptChanged() {
     echo "Checking if db-script folder has changed..."
 
-    // Simulate first build detection
-    def hasPreviousCommit = 'false' // For dry-run, assume first build
-    if (hasPreviousCommit == 'false') {
+    // Check if this is the first build
+    def previousBuild = currentBuild.previousBuild
+    if (previousBuild == null) {
         echo "First build detected — assuming DB migration is required"
         return 'true'
     }
 
-    // Normally, you would check git diff here
-    def output = 'db-script/V1__init.sql' // Simulated changed file
-    return output ? 'true' : 'false'
+    // Check for changes in db-script directory
+    try {
+        def changes = sh(
+            script: """
+                git diff --name-only HEAD~1 HEAD | grep '^db-script/' || true
+            """,
+            returnStdout: true
+        ).trim()
+
+        if (changes) {
+            echo "DB script changes detected:\n${changes}"
+            return 'true'
+        } else {
+            echo "No DB script changes detected"
+            return 'false'
+        }
+    } catch (Exception e) {
+        echo "Error checking for DB changes: ${e.message}"
+        echo "Defaulting to running migration as a safety measure"
+        return 'true'
+    }
 }
