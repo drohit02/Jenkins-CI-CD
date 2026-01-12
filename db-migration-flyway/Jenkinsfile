@@ -70,17 +70,35 @@ def isDbScriptChanged() {
     echo "Checking if db-script folder has changed..."
 
     // Check if this is the first build
-    def previousBuild = currentBuild.previousBuild
-    if (previousBuild == null) {
+    if (currentBuild.previousBuild == null) {
         echo "First build detected — assuming DB migration is required"
         return 'true'
     }
 
-    // Check for changes in db-script directory
     try {
+        // Get current commit
+        def currentCommit = env.GIT_COMMIT
+        echo "Current commit: ${currentCommit}"
+        
+        // Get previous successful build's commit
+        def previousCommit = env.GIT_PREVIOUS_SUCCESSFUL_COMMIT ?: env.GIT_PREVIOUS_COMMIT
+        
+        if (previousCommit == null || previousCommit == currentCommit) {
+            echo "No previous commit found or same as current, checking for db-script existence"
+            def dbScriptExists = fileExists('db-script')
+            if (dbScriptExists) {
+                echo "db-script folder exists, running migration"
+                return 'true'
+            }
+            return 'false'
+        }
+        
+        echo "Previous commit: ${previousCommit}"
+        
+        // Check for changes in db-script directory between commits
         def changes = sh(
             script: """
-                git diff --name-only HEAD~1 HEAD | grep '^db-script/' || true
+                git diff --name-only ${previousCommit} ${currentCommit} | grep '^db-script/' || true
             """,
             returnStdout: true
         ).trim()
@@ -89,7 +107,7 @@ def isDbScriptChanged() {
             echo "DB script changes detected:\n${changes}"
             return 'true'
         } else {
-            echo "No DB script changes detected"
+            echo "No DB script changes detected between ${previousCommit} and ${currentCommit}"
             return 'false'
         }
     } catch (Exception e) {
